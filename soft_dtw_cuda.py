@@ -417,6 +417,6 @@ if __name__ == "__main__":
 
     torch.manual_seed(1234)
 
-    profile(128, 1024, 2, tol_backward=1e-6)
+    profile(128, 16, 2, tol_backward=1e-6)
     profile(512, 64, 2, tol_backward=1e-4)
     profile(512, 256, 2, tol_backward=1e-3)
