@@ -31,7 +31,7 @@ import math
 
 # ----------------------------------------------------------------------------------------------------------------------
 @cuda.jit
-def compute_softdtw_cuda(D, gamma, bandwidth, seq_len, n_passes, R):
+def compute_softdtw_cuda(D, gamma, bandwidth, max_i, max_j, n_passes, R):
     """
     :param seq_len: The length of the sequence (both inputs are assumed to be of the same size)
     :param n_passes: 2 * seq_len - 1 (The number of anti-diagonals)
@@ -53,14 +53,14 @@ def compute_softdtw_cuda(D, gamma, bandwidth, seq_len, n_passes, R):
     for p in range(n_passes):
 
         # The index is actually 'p - tid' but need to force it in-bounds
-        J = max(0, min(p - tid, seq_len - 1))
+        J = max(0, min(p - tid, max_j - 1))
 
         # For simplicity, we define i, j which start from 1 (offset from I, J)
         i = I + 1
         j = J + 1
 
-        # Only compute if element[i, j] is on the current anti-diagonal
-        if I + J == p:
+        # Only compute if element[i, j] is on the current anti-diagonal, and also is within bounds
+        if I + J == p and (I < max_i and J < max_j):
             # Don't compute if outside bandwidth
             if not (abs(i - j) > bandwidth > 0):
                 r0 = -R[b, i - 1, j - 1] * inv_gamma
@@ -76,7 +76,7 @@ def compute_softdtw_cuda(D, gamma, bandwidth, seq_len, n_passes, R):
 
 # ----------------------------------------------------------------------------------------------------------------------
 @cuda.jit
-def compute_softdtw_backward_cuda(D, R, inv_gamma, bandwidth, seq_len, n_passes, E):
+def compute_softdtw_backward_cuda(D, R, inv_gamma, bandwidth, max_i, max_j, n_passes, E):
     k = cuda.blockIdx.x
     tid = cuda.threadIdx.x
 
@@ -89,13 +89,13 @@ def compute_softdtw_backward_cuda(D, R, inv_gamma, bandwidth, seq_len, n_passes,
         rev_p = n_passes - p - 1
 
         # convert tid to I, J, then i, j
-        J = max(0, min(rev_p - tid, seq_len - 1))
+        J = max(0, min(rev_p - tid, max_j - 1))
 
         i = I + 1
         j = J + 1
 
-        # Only compute if element[i, j] is on the current anti-diagonal
-        if I + J == rev_p:
+        # Only compute if element[i, j] is on the current anti-diagonal, and also is within bounds
+        if I + J == rev_p and (I < max_i and J < max_j):
 
             if math.isinf(R[k, i, j]):
                 R[k, i, j] = -math.inf
@@ -127,7 +127,8 @@ class _SoftDTWCUDA(Function):
         B = D.shape[0]
         N = D.shape[1]
         M = D.shape[2]
-        n_passes = 2 * N - 1
+        threads_per_block = max(N, M)
+        n_passes = 2 * threads_per_block - 1
 
         # Prepare the output array
         R = torch.ones((B, N + 2, M + 2), device=dev, dtype=dtype) * math.inf
@@ -135,10 +136,10 @@ class _SoftDTWCUDA(Function):
 
         # Run the CUDA kernel.
         # Set CUDA's grid size to be equal to the batch size (every CUDA block processes one sample pair)
-        # Set the CUDA block size to be equal to the length of the sequence (equal to the size of the largest diagonal)
-        compute_softdtw_cuda[B, N](cuda.as_cuda_array(D.detach()),
-                                   gamma.item(), bandwidth.item(), N, n_passes,
-                                   cuda.as_cuda_array(R))
+        # Set the CUDA block size to be equal to the length of the longer sequence (equal to the size of the largest diagonal)
+        compute_softdtw_cuda[B, threads_per_block](cuda.as_cuda_array(D.detach()),
+                                                   gamma.item(), bandwidth.item(), N, M, n_passes,
+                                                   cuda.as_cuda_array(R))
         ctx.save_for_backward(D, R, gamma, bandwidth)
         return R[:, -2, -2]
 
@@ -151,7 +152,8 @@ class _SoftDTWCUDA(Function):
         B = D.shape[0]
         N = D.shape[1]
         M = D.shape[2]
-        n_passes = 2 * N - 1
+        threads_per_block = max(N, M)
+        n_passes = 2 * threads_per_block - 1
 
         D_ = torch.zeros((B, N + 2, M + 2), dtype=dtype, device=dev)
         D_[:, 1:N + 1, 1:M + 1] = D
@@ -164,10 +166,10 @@ class _SoftDTWCUDA(Function):
         E[:, -1, -1] = 1
 
         # Grid and block sizes are set same as done above for the forward() call
-        compute_softdtw_backward_cuda[B, N](cuda.as_cuda_array(D_),
-                                            cuda.as_cuda_array(R),
-                                            1.0 / gamma.item(), bandwidth.item(), N, n_passes,
-                                            cuda.as_cuda_array(E))
+        compute_softdtw_backward_cuda[B, threads_per_block](cuda.as_cuda_array(D_),
+                                                            cuda.as_cuda_array(R),
+                                                            1.0 / gamma.item(), bandwidth.item(), N, M, n_passes,
+                                                            cuda.as_cuda_array(E))
         E = E[:, 1:N + 1, 1:M + 1]
         return grad_output.view(-1, 1, 1).expand_as(E) * E, None, None
 
@@ -300,11 +302,7 @@ class SoftDTW(torch.nn.Module):
 
         use_cuda = self.use_cuda
 
-        if use_cuda:
-            if lx != ly:  # The length of the sequences must be equal
-                print("SoftDTW: Cannot use CUDA because the length of the two sequences differ")
-                use_cuda = False
-            elif lx > 1024:  # We should be able to spawn enough threads in CUDA
+        if use_cuda and (lx > 1024 or ly > 1024):  # We should be able to spawn enough threads in CUDA
                 print("SoftDTW: Cannot use CUDA because the sequence length > 1024 (the maximum block size supported by CUDA)")
                 use_cuda = False
 
@@ -373,19 +371,19 @@ def timed_run(a, b, sdtw):
     return t, forward, grads
 
 # ----------------------------------------------------------------------------------------------------------------------
-def profile(batch_size, seq_len, dims, tol_backward):
+def profile(batch_size, seq_len_a, seq_len_b, dims, tol_backward):
     sdtw = SoftDTW(False, gamma=1.0, normalize=False)
     sdtw_cuda = SoftDTW(True, gamma=1.0, normalize=False)
     n_iters = 6
 
-    print("Profiling forward() + backward() times for batch_size={}, seq_len={}, dims={}...".format(batch_size, seq_len, dims))
+    print("Profiling forward() + backward() times for batch_size={}, seq_len_a={}, seq_len_b={}, dims={}...".format(batch_size, seq_len_a, seq_len_b, dims))
 
     times_cpu = []
     times_gpu = []
 
     for i in range(n_iters):
-        a_cpu = torch.rand((batch_size, seq_len, dims), requires_grad=True)
-        b_cpu = torch.rand((batch_size, seq_len, dims))
+        a_cpu = torch.rand((batch_size, seq_len_a, dims), requires_grad=True)
+        b_cpu = torch.rand((batch_size, seq_len_b, dims))
         a_gpu = a_cpu.cuda()
         b_gpu = b_cpu.cuda()
 
@@ -417,6 +415,6 @@ if __name__ == "__main__":
 
     torch.manual_seed(1234)
 
-    profile(128, 16, 2, tol_backward=1e-6)
-    profile(512, 64, 2, tol_backward=1e-4)
-    profile(512, 256, 2, tol_backward=1e-3)
+    profile(128, 17, 15, 2, tol_backward=1e-6)
+    profile(512, 64, 64, 2, tol_backward=1e-4)
+    profile(512, 256, 256, 2, tol_backward=1e-3)

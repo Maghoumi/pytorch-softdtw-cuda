@@ -54,20 +54,20 @@ the faster this code runs.
 Here's what I get on with Ryzen 9 3900x and Titan RTX:
 
 ```
-Profiling forward() + backward() times for batch_size=128, seq_len=16, dims=2...
-	CPU:      0.008581484199385158
-	GPU:      0.001516376400104491
-	Speedup:  5.659204534437374
+Profiling forward() + backward() times for batch_size=128, seq_len_a=17, seq_len_b=15, dims=2...
+	CPU:      0.006849725800202577
+	GPU:      0.0017813925996961189
+	Speedup:  3.8451522709654493
 
-Profiling forward() + backward() times for batch_size=512, seq_len=64, dims=2...
-	CPU:      0.23573041420022492
-	GPU:      0.0035874296001566107
-	Speedup:  65.71011573019692
+Profiling forward() + backward() times for batch_size=512, seq_len_a=64, seq_len_b=64, dims=2...
+	CPU:      0.23511007620036253
+	GPU:      0.0038500409998960096
+	Speedup:  61.06690193863206
 
-Profiling forward() + backward() times for batch_size=512, seq_len=256, dims=2...
-	CPU:      3.729714207601501
-	GPU:      0.03254888820010819
-	Speedup:  114.58806779117891
+Profiling forward() + backward() times for batch_size=512, seq_len_a=256, seq_len_b=256, dims=2...
+	CPU:      3.7511388037995856
+	GPU:      0.03190629960008664
+	Speedup:  117.5673409582539
 ```
 
 Note that there are tons of opportunities for optimizing this code further (e.g. various 
@@ -76,18 +76,18 @@ CUDA optimizations such as the use shared memory, etc.). Contributions/improveme
 ### How accurate are the results?
 Depends on the length of your inputs. Because of the sequential nature of this code, the longer your input
 sequences are, the higher numerical errors become due to accumulation. Especially in the `backward()` call,
-you could see floating point errors of up to `1e-3` in the resulting derivative tensor.
+you could see floating point errors of up to `1e-3` on uniform random inputs in the range `[0, 1)` in the 
+resulting derivative tensor.
 
 The unit tests included in `soft_dtw_cuda.py` verify the results against the CPU implementation.
 
 ### What are the limitations?
 Some limitations are:
 
-1. All sequences in the batch should have the same length / number of features.
-2. Both `x` and `y` should have the same length (time steps). Otherwise the code will use the CPU implementation.
-3. Inputs cannot have lengths longer than 1024 (due to CUDA limitations on the maximum block size). 
+1. All sequences in the same batch should have the same length / number of features.
+2. Inputs cannot have lengths longer than 1024 (due to CUDA limitations on the maximum block size). 
    The code will warn if your sequence length is too long, and will fall-back to the CPU implementation. 
-4. You may run out of CUDA resources if your inputs are long (but still less than 1024). See below.
+3. You may run out of CUDA resources if your inputs are long (but still less than 1024). See below.
 
 ### I'm seeing `CUDA_ERROR_LAUNCH_OUT_OF_RESOURCES`. Help!
 This means the length of your sequences is too long, and your GPU cannot spawn a sufficient number of threads.
