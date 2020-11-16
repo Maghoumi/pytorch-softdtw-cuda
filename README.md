@@ -51,7 +51,7 @@ Yes! Use the `bandwitdh` argument to specify the Sakoe-Chiba bandwidth to use fo
 It depends on your batch size and sequence length. The longer the sequences and the larger the batch size,
 the faster this code runs.
  
-Here's what I get on with Ryzen 9 3900x and Titan RTX:
+Here's what I get with Ryzen 9 3900x and Titan RTX:
 
 ```
 Profiling forward() + backward() times for batch_size=128, seq_len_a=17, seq_len_b=15, dims=2...

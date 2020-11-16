@@ -275,7 +275,7 @@ class SoftDTW(torch.nn.Module):
     The soft DTW implementation that optionally supports CUDA
     """
 
-    def __init__(self, use_cuda, gamma=1.0, normalize=False, bandwidth=None):
+    def __init__(self, use_cuda, gamma=1.0, normalize=False, bandwidth=None, dist_func=None):
         """
         Initializes a new instance using the supplied parameters
         :param use_cuda: Flag indicating whether the CUDA implementation should be used
@@ -283,12 +283,19 @@ class SoftDTW(torch.nn.Module):
         :param normalize: Flag indicating whether to perform normalization
                           (as discussed in https://github.com/mblondel/soft-dtw/issues/10#issuecomment-383564790)
         :param bandwidth: Sakoe-Chiba bandwidth for pruning. Passing 'None' will disable pruning.
+        :param dist_func: Optional point-wise distance function to use. If 'None', then a default Euclidean distance function will be used.
         """
         super(SoftDTW, self).__init__()
         self.normalize = normalize
         self.gamma = gamma
         self.bandwidth = 0 if bandwidth is None else float(bandwidth)
         self.use_cuda = use_cuda
+
+        # Set the distance function
+        if dist_func is not None:
+            self.dist_func = dist_func
+        else:
+            self.dist_func = SoftDTW._euclidean_dist_func
 
     def _get_func_dtw(self, x, y):
         """
@@ -309,7 +316,8 @@ class SoftDTW(torch.nn.Module):
         # Finally, return the correct function
         return _SoftDTWCUDA.apply if use_cuda else _SoftDTW.apply
 
-    def _calc_distance_matrix(self, x, y):
+    @staticmethod
+    def _euclidean_dist_func(x, y):
         """
         Calculates the Euclidean distance between each element in x and y per timestep
         """
@@ -335,12 +343,12 @@ class SoftDTW(torch.nn.Module):
             # Stack everything up and run
             x = torch.cat([X, X, Y])
             y = torch.cat([Y, X, Y])
-            D = self._calc_distance_matrix(x, y)
+            D = self.dist_func(x, y)
             out = func_dtw(D, self.gamma, self.bandwidth)
             out_xy, out_xx, out_yy = torch.split(out, X.shape[0])
             return out_xy - 1 / 2 * (out_xx + out_yy)
         else:
-            D_xy = self._calc_distance_matrix(X, Y)
+            D_xy = self.dist_func(X, Y)
             return func_dtw(D_xy, self.gamma, self.bandwidth)
 
 # ----------------------------------------------------------------------------------------------------------------------
