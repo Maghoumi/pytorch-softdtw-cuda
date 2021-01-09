@@ -360,7 +360,7 @@ def timed_run(a, b, sdtw):
     """
     from timeit import default_timer as timer
 
-    # Forward
+    # Forward pass
     start = timer()
     forward = sdtw(a, b)
     end = timer()
@@ -405,7 +405,7 @@ def profile(batch_size, seq_len_a, seq_len_b, dims, tol_backward):
         assert torch.allclose(forward_cpu, forward_gpu.cpu())
         assert torch.allclose(backward_cpu, backward_gpu.cpu(), atol=tol_backward)
 
-        if i > 0:  # Ignore the first time we run, in case this is a cold start (because timings are off at a cold start of the scrip)
+        if i > 0:  # Ignore the first time we run, in case this is a cold start (because timings are off at a cold start of the script)
             times_cpu += [t_cpu]
             times_gpu += [t_gpu]
 

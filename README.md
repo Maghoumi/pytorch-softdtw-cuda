@@ -8,8 +8,8 @@ My implementation is partly inspired by
 [_"Developing a pattern discovery method in time series data and its GPU acceleration"_](https://ieeexplore.ieee.org/document/8400444)
 wherein a diagonal-based implementation of the Belman recursion is proposed. 
 
-How to use
----
+## Getting Started
+
 This code depends on [PyTorch](https://pytorch.org/) and [Numba](http://numba.pydata.org/). 
 Just include `soft_dtw_cuda.py` in your projects, and you should be good to go!
 
@@ -21,21 +21,60 @@ cd pytorch-softdtw-cuda
 python soft_dtw_cuda.py
 ```
 
-### Sample code
+### Example Usage
 A sample code is already provided in the script. Here's a quick example:
 
 ```python
 from soft_dtw_cuda import SoftDTW
-...
-criterion = SoftDTW(use_cuda=True, gamma=0.1)
-...
-loss = criterion(out, target)  # Just like any torch.nn.xxxLoss()
+
+# Create the sequences
+batch_size, len_x, len_y, dims = 8, 15, 12, 5
+x = torch.rand((batch_size, len_x, dims), requires_grad=True)
+y = torch.rand((batch_size, len_y, dims))
+
+# Create the "criterion" object
+sdtw = SoftDTW(use_cuda=True, gamma=0.1)
+
+# Compute the loss value
+loss = sdtw(x, y)  # Just like any torch.nn.xyzLoss()
+
 # Aggregate and call backward()
 loss.mean().backward()
 ```
 
-FAQ:
----
+### Demo Project
+
+Checkout [DeepNAG](https://github.com/Maghoumi/DeepNAG), our deep non-adversarial gesture generator.
+We show that a RNN-based gesture generator trained with soft DTW can outperform the same generator
+trained using a GAN framework.
+
+<p align="center">
+  <img width="400" src="https://github.com/Maghoumi/DeepNAG/raw/master/images/kick.gif"/>
+  <img width="400" src="https://github.com/Maghoumi/DeepNAG/raw/master/images/uppercut.gif"/>
+</p>
+
+## Citation
+If you use this code in your research, please cite the following publications:
+
+```
+@phdthesis{maghoumi2020dissertation,
+  title={{Deep Recurrent Networks for Gesture Recognition and Synthesis}},
+  author={Mehran Maghoumi},
+  year={2020},
+  school={University of Central Florida Orlando, Florida}
+}
+
+@misc{maghoumi2020deepnag,
+      title={{DeepNAG: Deep Non-Adversarial Gesture Generation}},
+      author={Mehran Maghoumi and Eugene M. Taranta II and Joseph J. LaViola Jr},
+      year={2020},
+      eprint={2011.09149},
+      archivePrefix={arXiv},
+      primaryClass={cs.CV}
+}
+```
+
+## FAQ:
 
 ### This is awesome! What can I do to help?
 Consider starring this repository if you find it helpful. Also, don't forget to thank the author of 
