@@ -140,7 +140,7 @@ class _SoftDTWCUDA(Function):
         compute_softdtw_cuda[B, threads_per_block](cuda.as_cuda_array(D.detach()),
                                                    gamma.item(), bandwidth.item(), N, M, n_passes,
                                                    cuda.as_cuda_array(R))
-        ctx.save_for_backward(D, R, gamma, bandwidth)
+        ctx.save_for_backward(D, R.clone(), gamma, bandwidth)
         return R[:, -2, -2]
 
     @staticmethod
