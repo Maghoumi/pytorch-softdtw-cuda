@@ -67,13 +67,12 @@ If you use this code in your research, please cite the following publications:
   school={University of Central Florida Orlando, Florida}
 }
 
-@misc{maghoumi2020deepnag,
-      title={{DeepNAG: Deep Non-Adversarial Gesture Generation}},
-      author={Mehran Maghoumi and Eugene M. Taranta II and Joseph J. LaViola Jr},
-      year={2020},
-      eprint={2011.09149},
-      archivePrefix={arXiv},
-      primaryClass={cs.CV}
+@inproceedings{maghoumi2021deepnag,
+  title={DeepNAG: Deep Non-Adversarial Gesture Generation},
+  author={Maghoumi, Mehran and Taranta, Eugene Matthew and LaViola, Joseph},
+  booktitle={26th International Conference on Intelligent User Interfaces},
+  pages={213--223},
+  year={2021}
 }
 ```
 
