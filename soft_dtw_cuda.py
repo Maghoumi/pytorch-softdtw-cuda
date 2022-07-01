@@ -193,7 +193,10 @@ def compute_softdtw(D, gamma, bandwidth):
             for i in range(1, N + 1):
 
                 # Check the pruning condition
-                if 0 < bandwidth < np.abs(i - j):
+                i_sc, j_sc = i, j
+                if M > N: i_sc = i * M / N
+                if M < N: j_sc = j * N / M
+                if 0 < bandwidth < np.abs(i_sc - j_sc):
                     continue
 
                 r0 = -R[b, i - 1, j - 1] / gamma
@@ -226,7 +229,10 @@ def compute_softdtw_backward(D_, R, gamma, bandwidth):
                     R[k, i, j] = -np.inf
 
                 # Check the pruning condition
-                if 0 < bandwidth < np.abs(i - j):
+                i_sc, j_sc = i, j
+                if M > N: i_sc = i * M / N
+                if M < N: j_sc = j * N / M
+                if 0 < bandwidth < np.abs(i_sc - j_sc):
                     continue
 
                 a0 = (R[k, i + 1, j] - R[k, i, j] - D[k, i + 1, j]) / gamma
