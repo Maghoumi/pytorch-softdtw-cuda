@@ -64,8 +64,8 @@ def compute_softdtw_cuda(D, gamma, bandwidth, max_i, max_j, n_passes, R):
 
             # Don't compute if outside bandwidth
             i_sc, j_sc = i, j
-            if M > N: i_sc = i * M / N
-            if M < N: j_sc = j * N / M
+            if max_j > max_i: i_sc = i * max_j / max_i
+            if max_j < max_i: j_sc = j * max_i / max_j
             if not (abs(i_sc - j_sc) > bandwidth > 0):
                 r0 = -R[b, i - 1, j - 1] * inv_gamma
                 r1 = -R[b, i - 1, j] * inv_gamma
@@ -106,8 +106,8 @@ def compute_softdtw_backward_cuda(D, R, inv_gamma, bandwidth, max_i, max_j, n_pa
 
             # Don't compute if outside bandwidth
             i_sc, j_sc = i, j
-            if M > N: i_sc = i * M / N
-            if M < N: j_sc = j * N / M
+            if max_j > max_i: i_sc = i * max_j / max_i
+            if max_j < max_i: j_sc = j * max_i / max_j
             if not (abs(i_sc - j_sc) > bandwidth > 0):
                 a = math.exp((R[k, i + 1, j] - R[k, i, j] - D[k, i + 1, j]) * inv_gamma)
                 b = math.exp((R[k, i, j + 1] - R[k, i, j] - D[k, i, j + 1]) * inv_gamma)
