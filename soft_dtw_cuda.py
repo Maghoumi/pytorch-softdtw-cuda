@@ -321,12 +321,10 @@ class SoftDTW(torch.nn.Module):
         """
         Calculates the Euclidean distance between each element in x and y per timestep
         """
-        n = x.size(1)
-        m = y.size(1)
-        d = x.size(2)
-        x = x.unsqueeze(2).expand(-1, n, m, d)
-        y = y.unsqueeze(1).expand(-1, n, m, d)
-        return torch.pow(x - y, 2).sum(3)
+        x_norm = (x**2).sum(-1).unsqueeze(-1)
+        y_norm = (y**2).sum(-1).unsqueeze(-2)
+        dist = x_norm + y_norm - 2.0 * torch.bmm(x, y.mT)
+        return torch.clamp(dist, 0.0, np.inf)
 
     def forward(self, X, Y):
         """
