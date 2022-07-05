@@ -24,7 +24,7 @@
 import numpy as np
 import torch
 import torch.cuda
-from numba import jit
+from numba import jit, prange
 from torch.autograd import Function
 from numba import cuda
 import math
@@ -188,14 +188,14 @@ class _SoftDTWCUDA(Function):
 # I've added support for batching and pruning.
 #
 # ----------------------------------------------------------------------------------------------------------------------
-@jit(nopython=True)
+@jit(nopython=True, parallel=True)
 def compute_softdtw(D, gamma, bandwidth):
     B = D.shape[0]
     N = D.shape[1]
     M = D.shape[2]
     R = np.ones((B, N + 2, M + 2)) * np.inf
     R[:, 0, 0] = 0
-    for b in range(B):
+    for b in prange(B):
         for j in range(1, M + 1):
             for i in range(1, N + 1):
 
@@ -216,7 +216,7 @@ def compute_softdtw(D, gamma, bandwidth):
     return R
 
 # ----------------------------------------------------------------------------------------------------------------------
-@jit(nopython=True)
+@jit(nopython=True, parallel=True)
 def compute_softdtw_backward(D_, R, gamma, bandwidth):
     B = D_.shape[0]
     N = D_.shape[1]
@@ -228,7 +228,7 @@ def compute_softdtw_backward(D_, R, gamma, bandwidth):
     R[:, :, -1] = -np.inf
     R[:, -1, :] = -np.inf
     R[:, -1, -1] = R[:, -2, -2]
-    for k in range(B):
+    for k in prange(B):
         for j in range(M, 0, -1):
             for i in range(N, 0, -1):
 
@@ -425,9 +425,9 @@ def profile(batch_size, seq_len_a, seq_len_b, dims, tol_backward):
     # Average and log
     avg_cpu = np.mean(times_cpu)
     avg_gpu = np.mean(times_gpu)
-    print("\tCPU:     ", avg_cpu)
-    print("\tGPU:     ", avg_gpu)
-    print("\tSpeedup: ", avg_cpu / avg_gpu)
+    print("  CPU:     ", avg_cpu)
+    print("  GPU:     ", avg_gpu)
+    print("  Speedup: ", avg_cpu / avg_gpu)
     print()
 
 # ----------------------------------------------------------------------------------------------------------------------
